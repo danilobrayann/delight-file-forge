@@ -8,6 +8,8 @@ interface UploadedFile {
   id: string;
   type: 'document' | 'image' | 'video' | 'audio';
   preview?: string;
+  converted?: boolean;
+  convertedFormat?: string;
 }
 
 const getFileType = (file: File): 'document' | 'image' | 'video' | 'audio' => {
@@ -94,11 +96,40 @@ const DropZone = () => {
   const handleConvert = async (fileItem: UploadedFile) => {
     setConverting(fileItem.id);
     
-    // Simulate conversion
+    // Simulate conversion process
     await new Promise(resolve => setTimeout(resolve, 2000));
     
+    // Mark file as converted
+    setFiles(prev => prev.map(f => 
+      f.id === fileItem.id 
+        ? { ...f, converted: true, convertedFormat: selectedFormat[fileItem.id] }
+        : f
+    ));
+    
     setConverting(null);
-    toast.success(`Arquivo convertido para ${selectedFormat[fileItem.id]} com sucesso!`);
+    toast.success(`Arquivo convertido para ${selectedFormat[fileItem.id]}! Clique em "Baixar" para salvar.`);
+  };
+
+  const handleDownload = (fileItem: UploadedFile) => {
+    const format = fileItem.convertedFormat || selectedFormat[fileItem.id];
+    const originalName = fileItem.file.name;
+    const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+    const newFileName = `${nameWithoutExt}.${format.toLowerCase()}`;
+    
+    // Create a blob from the original file (simulating converted file)
+    const blob = new Blob([fileItem.file], { type: fileItem.file.type });
+    const url = URL.createObjectURL(blob);
+    
+    // Create download link and trigger download
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = newFileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast.success(`${newFileName} baixado com sucesso!`);
   };
 
   return (
@@ -192,19 +223,31 @@ const DropZone = () => {
                   
                   {/* Actions */}
                   <div className="flex items-center gap-2">
-                    <Button 
-                      variant="gradient" 
-                      size="sm"
-                      onClick={() => handleConvert(fileItem)}
-                      disabled={converting === fileItem.id}
-                    >
-                      {converting === fileItem.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
+                    {fileItem.converted ? (
+                      <Button 
+                        variant="gradient" 
+                        size="sm"
+                        onClick={() => handleDownload(fileItem)}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
                         <Download className="w-4 h-4" />
-                      )}
-                      {converting === fileItem.id ? 'Convertendo...' : 'Converter'}
-                    </Button>
+                        Baixar
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="gradient" 
+                        size="sm"
+                        onClick={() => handleConvert(fileItem)}
+                        disabled={converting === fileItem.id}
+                      >
+                        {converting === fileItem.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Download className="w-4 h-4" />
+                        )}
+                        {converting === fileItem.id ? 'Convertendo...' : 'Converter'}
+                      </Button>
+                    )}
                     
                     <Button 
                       variant="ghost" 
