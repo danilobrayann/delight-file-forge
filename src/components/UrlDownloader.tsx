@@ -19,14 +19,15 @@ interface DownloadResult {
   format: string;
   status: 'pending' | 'processing' | 'ready' | 'error';
   downloadUrl?: string;
+  downloadFileName?: string;
 }
 
 const getPlatformIcon = (platform: string) => {
   switch (platform) {
     case 'youtube':
-      return <Youtube className="w-5 h-5 text-red-500" />;
+      return <Youtube className="w-5 h-5 text-primary" />;
     case 'tiktok':
-      return <Video className="w-5 h-5 text-pink-500" />;
+      return <Video className="w-5 h-5 text-accent" />;
     default:
       return <Link className="w-5 h-5 text-primary" />;
   }
@@ -69,81 +70,99 @@ export const UrlDownloader = () => {
   const platform = url ? detectPlatform(url) : 'other';
   const formatOptions = getFormatOptions(platform);
 
+  const sanitizeFileName = (name: string) => {
+    return name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9-_]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '')
+      .slice(0, 80);
+  };
+
+  const buildDemoDownload = (downloadUrl: string, downloadPlatform: string, downloadFormat: string) => {
+    const ext = downloadFormat.split('-')[0].toLowerCase();
+    const safeTitle = sanitizeFileName(`${downloadPlatform}_${ext}_${Date.now()}`) || `convertx_${Date.now()}`;
+    const fileName = `${safeTitle}.${ext}`;
+
+    const content = `
+===========================================
+ConvertX - Download de Mídia
+===========================================
+
+URL Original: ${downloadUrl}
+Plataforma: ${downloadPlatform.toUpperCase()}
+Formato: ${downloadFormat.toUpperCase()}
+Data: ${new Date().toLocaleString('pt-BR')}
+
+-------------------------------------------
+NOTA: Esta é uma versão de demonstração.
+Para baixar o VÍDEO/ÁUDIO real de YouTube,
+TikTok e outras redes, precisamos integrar
+um serviço de conversão no backend.
+-------------------------------------------
+    `.trim();
+
+    const blob = new Blob([content], { type: 'application/octet-stream' });
+    const blobUrl = URL.createObjectURL(blob);
+
+    return { safeTitle, fileName, blobUrl };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!url.trim()) {
       toast.error('Por favor, insira uma URL válida');
       return;
     }
 
     const detectedPlatform = detectPlatform(url);
+    const trimmedUrl = url.trim();
+
     const newDownload: DownloadResult = {
       id: Date.now().toString(),
-      url: url.trim(),
+      url: trimmedUrl,
       title: `Vídeo de ${detectedPlatform.charAt(0).toUpperCase() + detectedPlatform.slice(1)}`,
       platform: detectedPlatform,
       format: selectedFormat,
       status: 'processing',
     };
 
-    setDownloads(prev => [newDownload, ...prev]);
+    setDownloads((prev) => [newDownload, ...prev]);
     setIsProcessing(true);
     setUrl('');
 
-    // Simulate processing (in production, this would call an edge function)
+    // Simulate processing (in production, this would call a backend function)
     setTimeout(() => {
-      setDownloads(prev =>
-        prev.map(d =>
-          d.id === newDownload.id
-            ? { ...d, status: 'ready', downloadUrl: '#', title: `${detectedPlatform}_video_${Date.now()}` }
-            : d
-        )
+      setDownloads((prev) =>
+        prev.map((d) => {
+          if (d.id !== newDownload.id) return d;
+
+          const demo = buildDemoDownload(trimmedUrl, detectedPlatform, selectedFormat);
+
+          return {
+            ...d,
+            status: 'ready',
+            title: demo.safeTitle,
+            downloadUrl: demo.blobUrl,
+            downloadFileName: demo.fileName,
+          };
+        })
       );
       setIsProcessing(false);
-      toast.success('Mídia processada! Clique em "Baixar" para salvar.');
-    }, 3000);
-  };
-
-  const handleDownload = (download: DownloadResult) => {
-    const formatExt = download.format.split('-')[0];
-    const fileName = `${download.title}.${formatExt}`;
-    
-    // Create a demo file content (in production, this would be actual video/audio data)
-    const content = `
-===========================================
-ConvertX - Download de Mídia
-===========================================
-
-URL Original: ${download.url}
-Plataforma: ${download.platform.toUpperCase()}
-Formato: ${download.format.toUpperCase()}
-Data: ${new Date().toLocaleString('pt-BR')}
-
--------------------------------------------
-NOTA: Esta é uma versão de demonstração.
-Para downloads reais, seria necessário
-integrar com uma API de download de vídeos.
--------------------------------------------
-    `.trim();
-    
-    // Create blob and trigger download
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    toast.success(`${fileName} baixado com sucesso!`);
+      toast.success('Pronto! Clique em "Baixar" para salvar no seu PC.');
+    }, 1500);
   };
 
   const removeDownload = (id: string) => {
-    setDownloads(prev => prev.filter(d => d.id !== id));
+    setDownloads((prev) => {
+      const toRemove = prev.find((d) => d.id === id);
+      if (toRemove?.downloadUrl) {
+        URL.revokeObjectURL(toRemove.downloadUrl);
+      }
+      return prev.filter((d) => d.id !== id);
+    });
   };
 
   return (
@@ -157,7 +176,7 @@ integrar com uma API de download de vídeos.
           </div>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Baixe de{' '}
-            <span className="bg-gradient-to-r from-red-500 via-pink-500 to-purple-500 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               YouTube, TikTok
             </span>{' '}
             e mais
@@ -215,19 +234,19 @@ integrar com uma API de download de vídeos.
             <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
               <span className="text-sm text-muted-foreground">Plataformas suportadas:</span>
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-500/10 text-red-500 text-sm">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm">
                   <Youtube className="w-4 h-4" />
                   YouTube
                 </div>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-pink-500/10 text-pink-500 text-sm">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/10 text-accent text-sm">
                   <Video className="w-4 h-4" />
                   TikTok
                 </div>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-500/10 text-purple-500 text-sm">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground text-sm">
                   <Video className="w-4 h-4" />
                   Instagram
                 </div>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-500 text-sm">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-muted-foreground text-sm">
                   <Video className="w-4 h-4" />
                   Twitter
                 </div>
@@ -265,15 +284,16 @@ integrar com uma API de download de vídeos.
                     </div>
                   )}
                   
-                  {download.status === 'ready' && (
-                    <Button
-                      variant="gradient"
-                      size="sm"
-                      onClick={() => handleDownload(download)}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      <Download className="w-4 h-4" />
-                      Baixar
+                  {download.status === 'ready' && download.downloadUrl && (
+                    <Button variant="gradient" size="sm" asChild>
+                      <a
+                        href={download.downloadUrl}
+                        download={download.downloadFileName}
+                        onClick={() => toast.success('Download iniciado!')}
+                      >
+                        <Download className="w-4 h-4" />
+                        Baixar
+                      </a>
                     </Button>
                   )}
                   
