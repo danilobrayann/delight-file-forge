@@ -10,6 +10,8 @@ interface UploadedFile {
   preview?: string;
   converted?: boolean;
   convertedFormat?: string;
+  downloadUrl?: string;
+  downloadFileName?: string;
 }
 
 const getFileType = (file: File): 'document' | 'image' | 'video' | 'audio' => {
@@ -85,7 +87,13 @@ const DropZone = () => {
   };
 
   const removeFile = (id: string) => {
-    setFiles(prev => prev.filter(f => f.id !== id));
+    setFiles(prev => {
+      const toRemove = prev.find(f => f.id === id);
+      if (toRemove?.preview) URL.revokeObjectURL(toRemove.preview);
+      if (toRemove?.downloadUrl) URL.revokeObjectURL(toRemove.downloadUrl);
+      return prev.filter(f => f.id !== id);
+    });
+
     setSelectedFormat(prev => {
       const newState = { ...prev };
       delete newState[id];
@@ -93,43 +101,75 @@ const DropZone = () => {
     });
   };
 
-  const handleConvert = async (fileItem: UploadedFile) => {
-    setConverting(fileItem.id);
-    
-    // Simulate conversion process
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Mark file as converted
-    setFiles(prev => prev.map(f => 
-      f.id === fileItem.id 
-        ? { ...f, converted: true, convertedFormat: selectedFormat[fileItem.id] }
-        : f
-    ));
-    
-    setConverting(null);
-    toast.success(`Arquivo convertido para ${selectedFormat[fileItem.id]}! Clique em "Baixar" para salvar.`);
+  const getMimeTypeForFormat = (format: string) => {
+    const ext = format.toLowerCase();
+    const map: Record<string, string> = {
+      // documents
+      pdf: 'application/pdf',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      txt: 'text/plain',
+      rtf: 'application/rtf',
+      // images
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      webp: 'image/webp',
+      gif: 'image/gif',
+      svg: 'image/svg+xml',
+      // video
+      mp4: 'video/mp4',
+      mov: 'video/quicktime',
+      avi: 'video/x-msvideo',
+      webm: 'video/webm',
+      // audio
+      mp3: 'audio/mpeg',
+      wav: 'audio/wav',
+      ogg: 'audio/ogg',
+      aac: 'audio/aac',
+    };
+    return map[ext] || 'application/octet-stream';
   };
 
-  const handleDownload = (fileItem: UploadedFile) => {
-    const format = fileItem.convertedFormat || selectedFormat[fileItem.id];
+  const sanitizeFileName = (name: string) => {
+    return name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9-_]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+  };
+
+  const handleConvert = async (fileItem: UploadedFile) => {
+    setConverting(fileItem.id);
+
+    // Simulate conversion process
+    await new Promise(resolve => setTimeout(resolve, 1200));
+
+    const format = (selectedFormat[fileItem.id] || 'PDF').toLowerCase();
     const originalName = fileItem.file.name;
     const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
-    const newFileName = `${nameWithoutExt}.${format.toLowerCase()}`;
-    
-    // Create a blob from the original file (simulating converted file)
-    const blob = new Blob([fileItem.file], { type: fileItem.file.type });
-    const url = URL.createObjectURL(blob);
-    
-    // Create download link and trigger download
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = newFileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    toast.success(`${newFileName} baixado com sucesso!`);
+    const safeBase = sanitizeFileName(nameWithoutExt) || 'arquivo';
+    const newFileName = `${safeBase}.${format}`;
+
+    // Create a blob from the original file bytes (simulating converted file) but with the selected MIME
+    const blob = new Blob([fileItem.file], { type: getMimeTypeForFormat(format) });
+    const downloadUrl = URL.createObjectURL(blob);
+
+    // Mark file as converted and prepare download
+    setFiles(prev => prev.map(f =>
+      f.id === fileItem.id
+        ? {
+            ...f,
+            converted: true,
+            convertedFormat: selectedFormat[fileItem.id],
+            downloadUrl,
+            downloadFileName: newFileName,
+          }
+        : f
+    ));
+
+    setConverting(null);
+    toast.success(`Arquivo pronto em ${selectedFormat[fileItem.id]}! Clique em "Baixar".`);
   };
 
   return (
@@ -223,15 +263,16 @@ const DropZone = () => {
                   
                   {/* Actions */}
                   <div className="flex items-center gap-2">
-                    {fileItem.converted ? (
-                      <Button 
-                        variant="gradient" 
-                        size="sm"
-                        onClick={() => handleDownload(fileItem)}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        <Download className="w-4 h-4" />
-                        Baixar
+                    {fileItem.converted && fileItem.downloadUrl ? (
+                      <Button variant="gradient" size="sm" asChild>
+                        <a
+                          href={fileItem.downloadUrl}
+                          download={fileItem.downloadFileName}
+                          onClick={() => toast.success('Download iniciado!')}
+                        >
+                          <Download className="w-4 h-4" />
+                          Baixar
+                        </a>
                       </Button>
                     ) : (
                       <Button 
