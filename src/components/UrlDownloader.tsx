@@ -106,8 +106,40 @@ export const UrlDownloader = () => {
   };
 
   const handleDownload = (download: DownloadResult) => {
-    // In production, this would trigger actual download
-    toast.success(`Baixando ${download.title}.${download.format.split('-')[0]}...`);
+    const formatExt = download.format.split('-')[0];
+    const fileName = `${download.title}.${formatExt}`;
+    
+    // Create a demo file content (in production, this would be actual video/audio data)
+    const content = `
+===========================================
+ConvertX - Download de Mídia
+===========================================
+
+URL Original: ${download.url}
+Plataforma: ${download.platform.toUpperCase()}
+Formato: ${download.format.toUpperCase()}
+Data: ${new Date().toLocaleString('pt-BR')}
+
+-------------------------------------------
+NOTA: Esta é uma versão de demonstração.
+Para downloads reais, seria necessário
+integrar com uma API de download de vídeos.
+-------------------------------------------
+    `.trim();
+    
+    // Create blob and trigger download
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast.success(`${fileName} baixado com sucesso!`);
   };
 
   const removeDownload = (id: string) => {
