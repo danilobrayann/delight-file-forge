@@ -1,73 +1,70 @@
-# Welcome to your Lovable project
+# 🛠️ Delight File Forge
 
-## Project info
+<p align="center">
+  <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
+  <img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase" />
+  <img src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
+</p>
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+---
 
-## How can I edit this code?
+**Delight File Forge** é uma plataforma moderna e poderosa para conversão de arquivos e download de mídias. Com uma interface minimalista e focada na experiência do usuário (UX), permitimos que você transforme seus documentos, imagens, vídeos e áudios de forma instantânea e gratuita.
 
-There are several ways of editing your application.
+## ✨ Funcionalidades
 
-**Use Lovable**
+### 🔄 Conversor Universal
+Converta arquivos entre dezenas de formatos populares com apenas um clique:
+- **Documentos**: PDF, DOCX, TXT, RTF, ODT.
+- **Imagens**: PNG, JPG, WEBP, GIF, SVG.
+- **Vídeos**: MP4, MOV, AVI, WEBM, MKV.
+- **Áudios**: MP3, WAV, OGG, AAC, FLAC.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+### 📥 Downloader de Mídia
+Baixe conteúdo de suas redes sociais favoritas com suporte a múltiplas qualidades:
+- **Plataformas**: YouTube (até 4K), TikTok, Instagram, Twitter (X) e Facebook.
+- **Opções**: Extração de áudio MP3 ou vídeo completo.
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🚀 Tecnologias Utilizadas
 
-**Use your preferred IDE**
+O projeto foi construído com as melhores e mais modernas ferramentas do ecossistema Web:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- **Frontend**: [React](https://reactjs.org/) + [Vite](https://vitejs.dev/)
+- **Estilização**: [Tailwind CSS](https://tailwindcss.com/) + [Shadcn/UI](https://ui.shadcn.com/)
+- **Linguagem**: [TypeScript](https://www.typescriptlang.org/)
+- **Backend/Auth**: [Supabase](https://supabase.com/)
+- **Ícones**: [Lucide React](https://lucide.dev/)
+- **Animações**: [Framer Motion](https://www.framer.com/motion/)
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 🛠️ Instalação e Uso Local
 
-Follow these steps:
+Siga os passos abaixo para rodar o projeto em sua máquina:
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+1. **Clone o repositório**:
+   ```bash
+   git clone https://github.com/DevesCodes/delight-file-forge.git
+   ```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+2. **Instale as dependências**:
+   ```bash
+   npm install
+   ```
 
-# Step 3: Install the necessary dependencies.
-npm i
+3. **Configure as variáveis de ambiente**:
+   Crie um arquivo `.env` na raiz do projeto com suas credenciais do Supabase:
+   ```env
+   VITE_SUPABASE_URL=sua_url_aqui
+   VITE_SUPABASE_ANON_KEY=sua_chave_aqui
+   ```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+4. **Inicie o servidor de desenvolvimento**:
+   ```bash
+   npm run dev
+   ```
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+<p align="center">
+  Desenvolvido com ❤️ por <strong>DevesCodes</strong>
+</p>
