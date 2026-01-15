@@ -80,34 +80,6 @@ export const UrlDownloader = () => {
       .slice(0, 80);
   };
 
-  const buildDemoDownload = (downloadUrl: string, downloadPlatform: string, downloadFormat: string) => {
-    const ext = downloadFormat.split('-')[0].toLowerCase();
-    const safeTitle = sanitizeFileName(`${downloadPlatform}_${ext}_${Date.now()}`) || `convertx_${Date.now()}`;
-    const fileName = `${safeTitle}.${ext}`;
-
-    const content = `
-===========================================
-ConvertX - Download de Mídia
-===========================================
-
-URL Original: ${downloadUrl}
-Plataforma: ${downloadPlatform.toUpperCase()}
-Formato: ${downloadFormat.toUpperCase()}
-Data: ${new Date().toLocaleString('pt-BR')}
-
--------------------------------------------
-NOTA: Esta é uma versão de demonstração.
-Para baixar o VÍDEO/ÁUDIO real de YouTube,
-TikTok e outras redes, precisamos integrar
-um serviço de conversão no backend.
--------------------------------------------
-    `.trim();
-
-    const blob = new Blob([content], { type: 'application/octet-stream' });
-    const blobUrl = URL.createObjectURL(blob);
-
-    return { safeTitle, fileName, blobUrl };
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,7 +95,7 @@ um serviço de conversão no backend.
     const newDownload: DownloadResult = {
       id: Date.now().toString(),
       url: trimmedUrl,
-      title: `Vídeo de ${detectedPlatform.charAt(0).toUpperCase() + detectedPlatform.slice(1)}`,
+      title: `Processando mídia do ${detectedPlatform.charAt(0).toUpperCase() + detectedPlatform.slice(1)}...`,
       platform: detectedPlatform,
       format: selectedFormat,
       status: 'processing',
@@ -133,26 +105,81 @@ um serviço de conversão no backend.
     setIsProcessing(true);
     setUrl('');
 
-    // Simulate processing (in production, this would call a backend function)
-    setTimeout(() => {
+    try {
+      const isAudioOnly = selectedFormat === 'mp3' || selectedFormat === 'wav';
+      const qualityMap: Record<string, string> = {
+        'mp4-720': '720',
+        'mp4-1080': '1080',
+        'mp4-4k': '2160',
+        'webm': '1080',
+      };
+
+      const response = await fetch('https://api.cobalt.tools/api/json', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          url: trimmedUrl,
+          vQuality: qualityMap[selectedFormat] || '720',
+          downloadMode: isAudioOnly ? 'audio' : 'video',
+          filenamePattern: 'pretty',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'error' || data.status === 'rate-limit') {
+        throw new Error(data.text || 'Erro na API do Cobalt');
+      }
+
+      if (data.status === 'redirect' || data.status === 'stream' || data.status === 'success') {
+        setDownloads((prev) =>
+          prev.map((d) => {
+            if (d.id !== newDownload.id) return d;
+
+            return {
+              ...d,
+              status: 'ready',
+              title: data.filename || `Mídia_${d.id}`,
+              downloadUrl: data.url,
+              downloadFileName: data.filename,
+            };
+          })
+        );
+        toast.success('Mídia pronta para download!');
+      } else if (data.status === 'picker') {
+        // For picker, we take the first option for simplicity
+        const firstOption = data.picker[0];
+        setDownloads((prev) =>
+          prev.map((d) => {
+            if (d.id !== newDownload.id) return d;
+            return {
+              ...d,
+              status: 'ready',
+              title: data.filename || `Mídia_${d.id}`,
+              downloadUrl: firstOption.url,
+              downloadFileName: data.filename,
+            };
+          })
+        );
+        toast.success('Mídia pronta (usando primeira opção disponível)');
+      } else {
+        throw new Error('Resposta inesperada da API');
+      }
+    } catch (error: any) {
+      console.error('Download error:', error);
       setDownloads((prev) =>
         prev.map((d) => {
           if (d.id !== newDownload.id) return d;
-
-          const demo = buildDemoDownload(trimmedUrl, detectedPlatform, selectedFormat);
-
-          return {
-            ...d,
-            status: 'ready',
-            title: demo.safeTitle,
-            downloadUrl: demo.blobUrl,
-            downloadFileName: demo.fileName,
-          };
+          return { ...d, status: 'error', title: 'Falha no processamento' };
         })
       );
+      toast.error(`Erro: ${error.message || 'Houve um problema ao processar a URL'}`);
+    } finally {
       setIsProcessing(false);
-      toast.success('Pronto! Clique em "Baixar" para salvar no seu PC.');
-    }, 1500);
+    }
   };
 
   const removeDownload = (id: string) => {
@@ -276,14 +303,14 @@ um serviço de conversão no backend.
                   <span className="px-2 py-1 rounded text-xs font-medium bg-primary/10 text-primary uppercase">
                     {download.format.split('-')[0]}
                   </span>
-                  
+
                   {download.status === 'processing' && (
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span className="text-sm">Processando...</span>
                     </div>
                   )}
-                  
+
                   {download.status === 'ready' && download.downloadUrl && (
                     <Button variant="gradient" size="sm" asChild>
                       <a
@@ -296,7 +323,7 @@ um serviço de conversão no backend.
                       </a>
                     </Button>
                   )}
-                  
+
                   <Button
                     variant="ghost"
                     size="icon"

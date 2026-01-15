@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Upload, FileText, Image, Video, Music, X, Download, Loader2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { toast } from "sonner";
+import { jsPDF } from "jspdf";
 
 interface UploadedFile {
   file: File;
@@ -74,9 +75,9 @@ const DropZone = () => {
       type: getFileType(file),
       preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
     }));
-    
+
     setFiles(prev => [...prev, ...uploadedFiles]);
-    
+
     // Set default format for each file
     uploadedFiles.forEach(uf => {
       const defaultFormat = formatOptions[uf.type]?.[0] || 'PDF';
@@ -139,37 +140,137 @@ const DropZone = () => {
       .replace(/^_|_$/g, '');
   };
 
+  const convertImage = (file: File, format: string): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      const url = URL.createObjectURL(file);
+
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0);
+
+        const mimeType = getMimeTypeForFormat(format);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('Conversion failed'));
+          }
+        }, mimeType, 0.92);
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Failed to load image'));
+      };
+
+      img.src = url;
+    });
+  };
+
+  const convertText = async (file: File, format: string): Promise<Blob> => {
+    const text = await file.text();
+    const mimeType = getMimeTypeForFormat(format);
+    return new Blob([text], { type: mimeType });
+  };
+
+  const convertToPdf = async (file: File, fileType: string): Promise<Blob> => {
+    const doc = new jsPDF();
+
+    if (fileType === 'image') {
+      const imageData = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const img = new window.Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = imageData;
+      });
+
+      const imgWidth = doc.internal.pageSize.getWidth();
+      const imgHeight = (img.height * imgWidth) / img.width;
+
+      doc.addImage(imageData, 'JPEG', 0, 0, imgWidth, imgHeight);
+    } else {
+      const text = await file.text();
+      const splitText = doc.splitTextToSize(text, 180);
+      doc.text(splitText, 10, 10);
+    }
+
+    return doc.output('blob');
+  };
+
+  const handleConvertAll = async () => {
+    const unconverted = files.filter(f => !f.converted);
+    for (const fileItem of unconverted) {
+      await handleConvert(fileItem);
+    }
+  };
+
   const handleConvert = async (fileItem: UploadedFile) => {
     setConverting(fileItem.id);
 
-    // Simulate conversion process
-    await new Promise(resolve => setTimeout(resolve, 1200));
+    try {
+      const format = (selectedFormat[fileItem.id] || 'PDF').toLowerCase();
+      const originalName = fileItem.file.name;
+      const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+      const safeBase = sanitizeFileName(nameWithoutExt) || 'arquivo';
+      const newFileName = `${safeBase}.${format}`;
 
-    const format = (selectedFormat[fileItem.id] || 'PDF').toLowerCase();
-    const originalName = fileItem.file.name;
-    const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
-    const safeBase = sanitizeFileName(nameWithoutExt) || 'arquivo';
-    const newFileName = `${safeBase}.${format}`;
+      let blob: Blob;
 
-    // Create a blob from the original file bytes (simulating converted file) but with the selected MIME
-    const blob = new Blob([fileItem.file], { type: getMimeTypeForFormat(format) });
-    const downloadUrl = URL.createObjectURL(blob);
+      if (format === 'pdf') {
+        blob = await convertToPdf(fileItem.file, fileItem.type);
+      } else if (fileItem.type === 'image') {
+        blob = await convertImage(fileItem.file, format);
+      } else if (fileItem.type === 'document' && (format === 'txt' || format === 'rtf')) {
+        blob = await convertText(fileItem.file, format);
+      } else {
+        // Fallback for types not fully supported in client-side yet (video, audio, complex docs)
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        blob = new Blob([fileItem.file], { type: getMimeTypeForFormat(format) });
+        if (fileItem.type === 'video' || fileItem.type === 'audio' || (fileItem.type === 'document' && format !== 'txt')) {
+          toast.info(`Nota: A conversão real para ${format.toUpperCase()} requer processamento adicional. Salvando com a nova extensão.`);
+        }
+      }
 
-    // Mark file as converted and prepare download
-    setFiles(prev => prev.map(f =>
-      f.id === fileItem.id
-        ? {
+      const downloadUrl = URL.createObjectURL(blob);
+
+      // Mark file as converted and prepare download
+      setFiles(prev => prev.map(f =>
+        f.id === fileItem.id
+          ? {
             ...f,
             converted: true,
             convertedFormat: selectedFormat[fileItem.id],
             downloadUrl,
             downloadFileName: newFileName,
           }
-        : f
-    ));
+          : f
+      ));
 
-    setConverting(null);
-    toast.success(`Arquivo pronto em ${selectedFormat[fileItem.id]}! Clique em "Baixar".`);
+      toast.success(`Arquivo pronto em ${selectedFormat[fileItem.id]}! Clique em "Baixar".`);
+    } catch (error: any) {
+      console.error('Conversion error:', error);
+      toast.error(`Erro na conversão: ${error.message || 'Tente outro formato.'}`);
+    } finally {
+      setConverting(null);
+    }
   };
 
   return (
@@ -182,8 +283,8 @@ const DropZone = () => {
         className={`
           relative rounded-2xl border-2 border-dashed p-12 text-center
           transition-all duration-300 cursor-pointer
-          ${isDragging 
-            ? 'border-primary bg-primary/10 scale-[1.02]' 
+          ${isDragging
+            ? 'border-primary bg-primary/10 scale-[1.02]'
             : 'border-border hover:border-primary/50 hover:bg-secondary/30'
           }
         `}
@@ -195,7 +296,7 @@ const DropZone = () => {
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           accept="*/*"
         />
-        
+
         <div className="flex flex-col items-center gap-4">
           <div className={`
             w-20 h-20 rounded-2xl flex items-center justify-center
@@ -204,7 +305,7 @@ const DropZone = () => {
           `}>
             <Upload className={`w-10 h-10 transition-colors ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
           </div>
-          
+
           <div>
             <p className="text-lg font-medium text-foreground mb-1">
               Arraste e solte seus arquivos aqui
@@ -219,15 +320,36 @@ const DropZone = () => {
       {/* Uploaded Files */}
       {files.length > 0 && (
         <div className="mt-8 space-y-4 animate-fade-in">
-          <h3 className="text-lg font-semibold text-foreground">Arquivos ({files.length})</h3>
-          
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-foreground">Arquivos ({files.length})</h3>
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setFiles([])}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                Limpar Todos
+              </Button>
+              <Button
+                variant="gradient"
+                size="sm"
+                onClick={handleConvertAll}
+                disabled={!!converting || files.every(f => f.converted)}
+              >
+                {converting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Converter Todos
+              </Button>
+            </div>
+          </div>
+
           <div className="space-y-3">
             {files.map((fileItem) => {
               const FileIcon = getFileIcon(fileItem.type);
               const formats = formatOptions[fileItem.type] || ['PDF'];
-              
+
               return (
-                <div 
+                <div
                   key={fileItem.id}
                   className="glass-card rounded-xl p-4 flex items-center gap-4 animate-slide-up"
                 >
@@ -239,7 +361,7 @@ const DropZone = () => {
                       <FileIcon className="w-6 h-6 text-muted-foreground" />
                     )}
                   </div>
-                  
+
                   {/* File Info */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">
@@ -249,7 +371,7 @@ const DropZone = () => {
                       {(fileItem.file.size / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
-                  
+
                   {/* Format Selector */}
                   <select
                     value={selectedFormat[fileItem.id] || formats[0]}
@@ -260,7 +382,7 @@ const DropZone = () => {
                       <option key={format} value={format}>{format}</option>
                     ))}
                   </select>
-                  
+
                   {/* Actions */}
                   <div className="flex items-center gap-2">
                     {fileItem.converted && fileItem.downloadUrl ? (
@@ -275,8 +397,8 @@ const DropZone = () => {
                         </a>
                       </Button>
                     ) : (
-                      <Button 
-                        variant="gradient" 
+                      <Button
+                        variant="gradient"
                         size="sm"
                         onClick={() => handleConvert(fileItem)}
                         disabled={converting === fileItem.id}
@@ -289,9 +411,9 @@ const DropZone = () => {
                         {converting === fileItem.id ? 'Convertendo...' : 'Converter'}
                       </Button>
                     )}
-                    
-                    <Button 
-                      variant="ghost" 
+
+                    <Button
+                      variant="ghost"
                       size="icon"
                       onClick={() => removeFile(fileItem.id)}
                       className="text-muted-foreground hover:text-destructive"
